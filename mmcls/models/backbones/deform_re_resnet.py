@@ -33,7 +33,7 @@ class EquivDeformConv(nn.Module):
                  fixparams=False):
 
         super().__init__()
-        
+
         assert type(kernel_size) == tuple or type(kernel_size) == int
 
         kernel_size = kernel_size if type(kernel_size) == tuple else (kernel_size, kernel_size)
@@ -43,7 +43,7 @@ class EquivDeformConv(nn.Module):
         self.is_flip = False
         if isinstance(gspace, gspaces.FlipRot2dOnR2) or isinstance(gspace, gspaces.Flip2dOnR2):
             self.is_flip = True
-        
+
         if kernel_size[0] == 3:
             base_offset = torch.tensor([
                             [-1., -1.], [-1., 0.], [-1., 1.],
@@ -58,7 +58,7 @@ class EquivDeformConv(nn.Module):
                             [1., -2], [1., -1.], [1., 0.], [1., 1.], [1., 2.],
                             [2., -2.], [2., -1.], [2., 0.], [2., 1.], [2., 2.],
                           ])
-        
+
         self.register_buffer("base_offset", base_offset)
         self.out_type = FIELD_TYPE['regular'](gspace, out_channels, fixparams=fixparams)
 
@@ -69,7 +69,7 @@ class EquivDeformConv(nn.Module):
             self.out_planes *= math.sqrt(self.group_size)
 
         self.ksize = kernel_size[0]
-        
+
         self.regular_conv = nn.Conv2d(in_channels=self.in_planes,
                                       out_channels=self.out_planes,
                                       kernel_size=kernel_size,
@@ -94,19 +94,19 @@ class EquivDeformConv(nn.Module):
             offset[:, :, :, 0] = - offset[:, :, :, 0]
 
         rotm = torch.tensor(
-                    [[np.cos(ang), - np.sin(ang)], 
+                    [[np.cos(ang), - np.sin(ang)],
                      [np.sin(ang), np.cos(ang)]],
                     dtype = offset.dtype
         )
         offset = torch.einsum('de, bgkdhw -> bgkehw', rotm.to(offset.device), offset)
         offset = offset - self.base_offset[None, :, None, :, None, None]
         return offset.transpose(2, 3).reshape(b, -1, group_size, h, w)
-        
+
     def forward(self, x):
         y = []
         x = rearrange(x.tensor, 'b (c g) h w -> b c g h w', g = self.group_size)
         b, c, g, h, w = x.shape
-        
+
         h, w = h // self.stride[0], w // self.stride[0]
         masks = 2. * torch.sigmoid(self.mask_conv(x.flatten(2, 3)))
         offsets = self.offset_conv(x.flatten(2, 3))
@@ -114,7 +114,7 @@ class EquivDeformConv(nn.Module):
         offsets = offsets.reshape(b, -1, g, h, w)
 
         weight  = self.regular_conv.weight.reshape(self.out_planes, -1, self.group_size, self.ksize, self.ksize)
-        
+
         for i in range(self.group_size):
             yi = torch.zeros((b, c, h, w)).to(x.device)
             apply_flip = self.is_flip & (i > (self.group_size - 1) // 2)
@@ -126,16 +126,16 @@ class EquivDeformConv(nn.Module):
 
             for j in range(self.group_size):
                 yij = torchvision.ops.deform_conv2d(input=x[:, :, base_shift * base + (i + j) % base],
-                                                  offset=offset[:, :, j], 
-                                                  weight=weight[:, :, j], 
-                                                  bias=self.regular_conv.bias, 
+                                                  offset=offset[:, :, j],
+                                                  weight=weight[:, :, j],
+                                                  bias=self.regular_conv.bias,
                                                   padding=self.padding,
                                                   stride=self.stride,
                                                   mask=mask[:, :, j],
                                                   )
                 yi += yij
             y.append(yi)
-        
+
         y = torch.stack(y, 2).flatten(1, 2)
         return GeometricTensor(y, self.out_type)
 
@@ -612,6 +612,7 @@ class DeformReResNet(BaseBackbone):
                  with_cp=False,
                  zero_init_residual=True,
                  orientation=8,
+                 flip=False,
                  fixparams=False,
                  scope="c",
                  with_geotensor=False,
@@ -649,7 +650,11 @@ class DeformReResNet(BaseBackbone):
         self.orientation = orientation
         self.fixparams = fixparams
         self.with_geotensor = with_geotensor  # just for testing equivariance
-        self.gspace = gspaces.Rot2dOnR2(orientation)
+        if flip == False:
+            self.gspace = gspaces.Rot2dOnR2(orientation)
+        else:
+            self.gspace = gspaces.FlipRot2dOnR2(orientation)
+
         self.in_type = enn.FieldType(
             self.gspace, [self.gspace.trivial_repr] * 3)
 
