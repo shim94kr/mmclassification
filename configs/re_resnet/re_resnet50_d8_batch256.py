@@ -12,7 +12,7 @@ model = dict(
         out_indices=(3, ),
         style='pytorch',
         orientation=8,
-        flip=False,
+        flip=True,
         fixparams=False),
     neck=dict(type='GlobalAveragePooling'),
     head=dict(

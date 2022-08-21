@@ -11,7 +11,7 @@ model = dict(
         num_stages=4,
         out_indices=(3, ),
         style='pytorch',
-        orientation=8,
+        orientation=4,
         flip=False,
         fixparams=False),
     neck=dict(type='GlobalAveragePooling'),

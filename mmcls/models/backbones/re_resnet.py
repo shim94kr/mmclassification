@@ -460,6 +460,7 @@ class ReResNet(BaseBackbone):
                  with_cp=False,
                  zero_init_residual=True,
                  orientation=8,
+                 flip=False,
                  fixparams=False,
                  with_geotensor=False,
                  init_cfg = [
@@ -498,6 +499,10 @@ class ReResNet(BaseBackbone):
         self.gspace = gspaces.Rot2dOnR2(orientation)
         self.in_type = enn.FieldType(
             self.gspace, [self.gspace.trivial_repr] * 3)
+        if flip == False:
+            self.gspace = gspaces.Rot2dOnR2(orientation)
+        else:
+            self.gspace = gspaces.FlipRot2dOnR2(orientation)
 
         self._make_stem_layer(self.gspace, in_channels, stem_channels)
 

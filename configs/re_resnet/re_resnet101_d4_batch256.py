@@ -7,12 +7,12 @@ model = dict(
     type='ImageClassifier',
     backbone=dict(
         type='ReResNet',
-        depth=50,
+        depth=101,
         num_stages=4,
         out_indices=(3, ),
         style='pytorch',
-        orientation=8,
-        flip=False,
+        orientation=4,
+        flip=True,
         fixparams=False),
     neck=dict(type='GlobalAveragePooling'),
     head=dict(
